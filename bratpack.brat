@@ -1,0 +1,114 @@
+include :mongrel2
+include :html
+include :util
+
+server = object.new
+handler = object.new
+
+handler.init = { meth, request, views |
+  my.meth = ->meth
+  my.request = request
+  my.params = request.params
+  my.views = views
+}
+
+handler.prototype [
+  response: {
+    with_this ->meth
+  }
+
+  render: { view_name |
+    true? view_name.array?
+    { view_name = view_name.first}
+
+    html_builder.new(views[view_name], 1, my).output
+  }
+]
+
+server.init = { block, options = [host: "0.0.0.0", port: "9995"] |
+  my.options = options
+  my.routes = [GET: [], POST:[]]
+  my.views = [:]
+  with_this ->block
+}
+
+server.prototype [
+  do_route: { req |
+    p "Method: #{req.headers[:METHOD]}"
+    p "Path: #{req.path}"
+    handler_method = match req.headers[:METHOD], req.path
+    p "Query: #{req.headers[:QUERY]}"
+    req.params = parse_query req.headers[:QUERY]
+
+    true? function?(->handler_method)
+    {
+      p "Got handler method!"
+      h = handler.new(->handler_method, req, my.views)
+      p "Made handler!"
+      h.response
+    }
+    { null }
+  }
+
+  match: { method, path |
+    route = my.routes[method].find { r | r[0] == path }
+
+    null? route
+    {
+      null
+    }
+    { route[1] }
+  }
+
+  parse_query: { query |
+    params = [:]
+
+    true? query
+    {
+      query.split(/[&;]/).each { pair |
+        matches = pair.match(/([^=]+)=([^&]+)/)
+
+          true? matches
+          {
+            params[matches[1]] = util.url_decode(matches[2])
+          }
+      }
+    }
+
+    params
+  }
+
+  get: { route, block |
+    my.routes[:GET] << [route, ->block]
+  }
+
+  post: { route, block |
+    my.routes[:POST] << [route, ->block]
+  }
+
+  view: { name, block |
+    my.views[name] = ->block
+  }
+
+  start: {
+    receive_address = "tcp://#{my.options[:host]}:#{my.options[:port]}"
+    send_address = "tcp://#{my.options[:host]}:#{my.options[:port].to_i - 1}"
+
+    h = mongrel.new sender_id: :web, receive: receive_address, send: send_address
+
+    loop {
+      msg = h.receive
+      response = do_route msg
+
+      true? response
+      {
+        h.reply msg, response
+      }
+      {
+        h.reply msg, h.http("Nothing there!", "404", "Not Found"), http: false 
+      }
+    }
+  }
+]
+
+export server, :bratpack

@@ -1,0 +1,11 @@
+util = object.new
+
+util.url_encode = { str |
+  str.dice.map({ c | "%#{c.to_byte.to_hex}" }).join
+}
+
+util.url_decode = { str |
+  str.sub(/%(..)/, { m | m.to_i(16).to_char })
+}
+
+export util, :util

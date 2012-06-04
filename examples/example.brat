@@ -1,0 +1,22 @@
+include :bratpack
+
+server = bratpack.new {
+  get :/ {
+    my.name = params[:name]
+    render :hello
+  }
+
+  view :hello {
+    html {
+      body {
+        h1 render :greet
+      }
+    }
+  }
+
+  view :greet {
+    "Hello, #{name}!"
+  }
+}
+
+server.start
