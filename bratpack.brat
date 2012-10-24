@@ -34,6 +34,7 @@ server.init = { block, options = [host: "0.0.0.0", port: "9995"] |
 
 server.prototype [
   do_route: { req |
+    p "From: #{req.headers["x-forwarded-for"]}"
     p "Method: #{req.headers[:METHOD]}"
     p "Path: #{req.path}"
     handler_method = match req.headers[:METHOD], req.path
@@ -98,14 +99,18 @@ server.prototype [
 
     loop {
       msg = h.receive
-      response = do_route msg
 
-      true? response
+      false? msg.disconnect?
       {
-        h.reply msg, response
-      }
-      {
-        h.reply msg, h.http("Nothing there!", "404", "Not Found"), http: false 
+        response = do_route msg
+
+        true? response
+        {
+          h.reply msg, response
+        }
+        {
+          h.reply msg, h.http("Nothing there!", "404", "Not Found"), http: false 
+        }
       }
     }
   }
